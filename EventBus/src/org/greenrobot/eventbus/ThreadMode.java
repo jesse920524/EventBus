@@ -18,6 +18,10 @@ package org.greenrobot.eventbus;
 /**
  * Each subscriber method has a thread mode, which determines in which thread the method is to be called by EventBus.
  * EventBus takes care of threading independently from the posting thread.
+ *
+ * 每个订阅方法都有一个ThreadMode.ThreadMode决定了EventBus在哪个线程调用该方法.
+ * EventBus处理方法的线程独立于事件发布的线程.
+ *
  * 
  * @see EventBus#register(Object)
  * @author Markus
@@ -28,6 +32,8 @@ public enum ThreadMode {
      * implies the least overhead because it avoids thread switching completely. Thus this is the recommended mode for
      * simple tasks that are known to complete in a very short time without requiring the main thread. Event handlers
      * using this mode must return quickly to avoid blocking the posting thread, which may be the main thread.
+     *
+     * 订阅方法会在事件发布的线程直接调用.(默认选项)
      */
     POSTING,
 
@@ -36,12 +42,17 @@ public enum ThreadMode {
      * the main thread, subscriber methods will be called directly, blocking the posting thread. Otherwise the event
      * is queued for delivery (non-blocking). Subscribers using this mode must return quickly to avoid blocking the main thread.
      * If not on Android, behaves the same as {@link #POSTING}.
+     *
+     * 订阅方法会在Android的主线程(UI线程)调用.
      */
     MAIN,
 
     /**
      * On Android, subscriber will be called in Android's main thread (UI thread). Different from {@link #MAIN},
      * the event will always be queued for delivery. This ensures that the post call is non-blocking.
+     *
+     * 和Main类似,在订阅方法在主线程调用
+     * 与Main不同:MAIN_ORDERED保证不会阻塞
      */
     MAIN_ORDERED,
 
@@ -50,6 +61,10 @@ public enum ThreadMode {
      * will be called directly in the posting thread. If the posting thread is the main thread, EventBus uses a single
      * background thread, that will deliver all its events sequentially. Subscribers using this mode should try to
      * return quickly to avoid blocking the background thread. If not on Android, always uses a background thread.
+     *
+     * 订阅方法在后台线程调用.
+     * 如果发送事件的线程不是主线程,订阅方法会直接在当前线程调用.
+     * 如果发送事件的线程是主线程,EventBus在后台线程中调用订阅方法.
      */
     BACKGROUND,
 
@@ -59,6 +74,9 @@ public enum ThreadMode {
      * use this mode if their execution might take some time, e.g. for network access. Avoid triggering a large number
      * of long running asynchronous subscriber methods at the same time to limit the number of concurrent threads. EventBus
      * uses a thread pool to efficiently reuse threads from completed asynchronous subscriber notifications.
+     *
+     * 订阅方法会在一个独立的线程调用.
+     * 该线程既不是发送事件的线程,又不是主线程.
      */
     ASYNC
 }
