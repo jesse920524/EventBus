@@ -16,6 +16,9 @@
 package org.greenrobot.eventbus;
 
 final class Subscription {
+
+    /**Object subscriber: 注册的类(Activity etc.)
+     * SubscriberMethod: 订阅方法*/
     final Object subscriber;
     final SubscriberMethod subscriberMethod;
     /**

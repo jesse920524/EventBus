@@ -34,6 +34,7 @@ public enum ThreadMode {
      * using this mode must return quickly to avoid blocking the posting thread, which may be the main thread.
      *
      * 订阅方法会在事件发布的线程直接调用.(默认选项)
+     * POSTING标记的订阅方法不能执行耗时操作, 因为可能在主线程(否则会阻塞主线程).
      */
     POSTING,
 
@@ -44,6 +45,7 @@ public enum ThreadMode {
      * If not on Android, behaves the same as {@link #POSTING}.
      *
      * 订阅方法会在Android的主线程(UI线程)调用.
+     * MAIN编辑的订阅方法同样不能执行耗时操作.理由同上.
      */
     MAIN,
 
@@ -53,6 +55,7 @@ public enum ThreadMode {
      *
      * 和Main类似,在订阅方法在主线程调用
      * 与Main不同:MAIN_ORDERED保证不会阻塞
+     * 因为MAIN_ORDERED标记的方法会被扔到MessageQueue中.
      */
     MAIN_ORDERED,
 
@@ -77,6 +80,7 @@ public enum ThreadMode {
      *
      * 订阅方法会在一个独立的线程调用.
      * 该线程既不是发送事件的线程,又不是主线程.
+     * 常用于耗时操作
      */
     ASYNC
 }

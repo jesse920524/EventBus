@@ -46,7 +46,9 @@ public class EventBus {
     private static final EventBusBuilder DEFAULT_BUILDER = new EventBusBuilder();
     private static final Map<Class<?>, List<Class<?>>> eventTypesCache = new HashMap<>();
 
+    /**核心字段, key:Event类类型, value:订阅信息数组*/
     private final Map<Class<?>, CopyOnWriteArrayList<Subscription>> subscriptionsByEventType;
+    /**map, key:订阅者实例, value:订阅方法的class集合*/
     private final Map<Object, List<Class<?>>> typesBySubscriber;
     private final Map<Class<?>, Object> stickyEvents;
 
@@ -136,25 +138,38 @@ public class EventBus {
      * Subscribers have event handling methods that must be annotated by {@link Subscribe}.
      * The {@link Subscribe} annotation also allows configuration like {@link
      * ThreadMode} and priority.
+     *
+     * 注册目标对象(订阅者),以接收events.目标对象必须明确的调用unregister()以注销.
+     * 订阅者必须拥有@Subscribe注解标记的方法.
+     * @param subscriber 注册的类(通常为XXActivity)
      */
     public void register(Object subscriber) {
+        /**根据注册类的实例得到对应的Class类*/
         Class<?> subscriberClass = subscriber.getClass();
+        /**通过SubscriberMethodFinder#findSubscriberMethods()
+         * 查找注册类中的订阅方法*/
         List<SubscriberMethod> subscriberMethods = subscriberMethodFinder.findSubscriberMethods(subscriberClass);
         synchronized (this) {
+            /**遍历注册方法,注册*/
             for (SubscriberMethod subscriberMethod : subscriberMethods) {
                 subscribe(subscriber, subscriberMethod);
             }
         }
     }
 
+    /**订阅
+     * @param subscriber 注册类
+     * @param subscriberMethod 注册类中使用@Subscribe标记的方法*/
     // Must be called in synchronized block
     private void subscribe(Object subscriber, SubscriberMethod subscriberMethod) {
+        /**获取订阅方法中形参XXEvent的class类型*/
         Class<?> eventType = subscriberMethod.eventType;
+
         Subscription newSubscription = new Subscription(subscriber, subscriberMethod);
         CopyOnWriteArrayList<Subscription> subscriptions = subscriptionsByEventType.get(eventType);
         if (subscriptions == null) {
             subscriptions = new CopyOnWriteArrayList<>();
-            subscriptionsByEventType.put(eventType, subscriptions);
+            subscriptionsByEventType.put(eventType, subscriptions);//
         } else {
             if (subscriptions.contains(newSubscription)) {
                 throw new EventBusException("Subscriber " + subscriber.getClass() + " already registered to event "
@@ -162,6 +177,7 @@ public class EventBus {
             }
         }
 
+        /**根据优先级将事件依次放入*/
         int size = subscriptions.size();
         for (int i = 0; i <= size; i++) {
             if (i == size || subscriberMethod.priority > subscriptions.get(i).subscriberMethod.priority) {
@@ -237,25 +253,34 @@ public class EventBus {
         }
     }
 
-    /** Unregisters the given subscriber from all event classes. */
+    /** Unregisters the given subscriber from all event classes.
+     *
+     *  注销订阅者
+     *  @param subscriber 订阅者实例(XXActivity)*/
     public synchronized void unregister(Object subscriber) {
-        List<Class<?>> subscribedTypes = typesBySubscriber.get(subscriber);
+        List<Class<?>> subscribedTypes = typesBySubscriber.get(subscriber);//获取订阅者的所有@Subscribe方法
         if (subscribedTypes != null) {
             for (Class<?> eventType : subscribedTypes) {
-                unsubscribeByEventType(subscriber, eventType);
+                unsubscribeByEventType(subscriber, eventType);//移除订阅者--订阅方法关联
             }
-            typesBySubscriber.remove(subscriber);
+            typesBySubscriber.remove(subscriber);//移除订阅者
         } else {
             logger.log(Level.WARNING, "Subscriber to unregister was not registered before: " + subscriber.getClass());
         }
     }
 
-    /** Posts the given event to the event bus. */
+    /** Posts the given event to the event bus.
+     *
+     * 将指定事件发送到EventBus*/
     public void post(Object event) {
+        /**获取当前发送事件的线程
+         * 根据当前线程得到事件队列
+         * 将事件入列*/
         PostingThreadState postingState = currentPostingThreadState.get();
         List<Object> eventQueue = postingState.eventQueue;
         eventQueue.add(event);
 
+        /**确保不会被调用多次*/
         if (!postingState.isPosting) {
             postingState.isMainThread = isMainThread();
             postingState.isPosting = true;
@@ -264,6 +289,8 @@ public class EventBus {
             }
             try {
                 while (!eventQueue.isEmpty()) {
+                    /**post()的核心方法
+                     * 移除当前线程的队列头*/
                     postSingleEvent(eventQueue.remove(0), postingState);
                 }
             } finally {
@@ -375,6 +402,9 @@ public class EventBus {
         return false;
     }
 
+    /**发送一个事件
+     * @param event 事件类(XXEvent)
+     * @param postingState 发送事件的线程的信息*/
     private void postSingleEvent(Object event, PostingThreadState postingState) throws Error {
         Class<?> eventClass = event.getClass();
         boolean subscriptionFound = false;
@@ -399,9 +429,11 @@ public class EventBus {
         }
     }
 
+    /**根据事件类型发送单一事件*/
     private boolean postSingleEventForEventType(Object event, PostingThreadState postingState, Class<?> eventClass) {
         CopyOnWriteArrayList<Subscription> subscriptions;
         synchronized (this) {
+            /**通过事件类型获取订阅该事件的订阅表*/
             subscriptions = subscriptionsByEventType.get(eventClass);
         }
         if (subscriptions != null && !subscriptions.isEmpty()) {
@@ -410,6 +442,7 @@ public class EventBus {
                 postingState.subscription = subscription;
                 boolean aborted = false;
                 try {
+                    /**将订阅信息, 事件类型, 线程类型传入*/
                     postToSubscription(subscription, event, postingState.isMainThread);
                     aborted = postingState.canceled;
                 } finally {
@@ -426,6 +459,12 @@ public class EventBus {
         return false;
     }
 
+    /**将事件发送到订阅者
+     *
+     * 核心方法是invokeSubscriber() || enqueue()
+     * invokeSubscriber()会直接调用注册方法.
+     * enqueue()会将事件入列.
+     * 通过反射执行订阅方法*/
     private void postToSubscription(Subscription subscription, Object event, boolean isMainThread) {
         switch (subscription.subscriberMethod.threadMode) {
             case POSTING:
@@ -504,6 +543,7 @@ public class EventBus {
         }
     }
 
+    /**执行订阅方法*/
     void invokeSubscriber(Subscription subscription, Object event) {
         try {
             subscription.subscriberMethod.method.invoke(subscription.subscriber, event);

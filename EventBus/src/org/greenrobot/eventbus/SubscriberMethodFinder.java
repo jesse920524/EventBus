@@ -36,6 +36,10 @@ class SubscriberMethodFinder {
     private static final int SYNTHETIC = 0x1000;
 
     private static final int MODIFIERS_IGNORE = Modifier.ABSTRACT | Modifier.STATIC | BRIDGE | SYNTHETIC;
+
+    /**方法缓存.
+     * key:注册的类
+     * value:该类中,所有用@Subscribe标记的订阅方法*/
     private static final Map<Class<?>, List<SubscriberMethod>> METHOD_CACHE = new ConcurrentHashMap<>();
 
     private List<SubscriberInfoIndex> subscriberInfoIndexes;
@@ -52,13 +56,17 @@ class SubscriberMethodFinder {
         this.ignoreGeneratedIndex = ignoreGeneratedIndex;
     }
 
+    /**根据注册的类,寻找其订阅方法
+     * @param subscriberClass XXActivity的class类型
+     * @return 注册类的订阅方法集合*/
     List<SubscriberMethod> findSubscriberMethods(Class<?> subscriberClass) {
-        List<SubscriberMethod> subscriberMethods = METHOD_CACHE.get(subscriberClass);
+        List<SubscriberMethod> subscriberMethods = METHOD_CACHE.get(subscriberClass);//从缓存读取
         if (subscriberMethods != null) {
             return subscriberMethods;
         }
 
         if (ignoreGeneratedIndex) {
+            /**使用反射获取注册类的订阅方法*/
             subscriberMethods = findUsingReflection(subscriberClass);
         } else {
             subscriberMethods = findUsingInfo(subscriberClass);
@@ -67,6 +75,7 @@ class SubscriberMethodFinder {
             throw new EventBusException("Subscriber " + subscriberClass
                     + " and its super classes have no public methods with the @Subscribe annotation");
         } else {
+            /**写入缓存*/
             METHOD_CACHE.put(subscriberClass, subscriberMethods);
             return subscriberMethods;
         }
@@ -137,16 +146,21 @@ class SubscriberMethodFinder {
         return null;
     }
 
+    /**根据注册的类的class类型对象,使用反射获取其用@Subscribe标记的订阅方法*/
     private List<SubscriberMethod> findUsingReflection(Class<?> subscriberClass) {
         FindState findState = prepareFindState();
         findState.initForSubscriber(subscriberClass);
         while (findState.clazz != null) {
+            /**通过反射获取@Subscribe标记的订阅方法*/
             findUsingReflectionInSingleClass(findState);
+            /**查找父类中@Subscribe*/
             findState.moveToSuperclass();
         }
+        /**重置FindState*/
         return getMethodsAndRelease(findState);
     }
 
+    /**查找FindState中的@Subscribe方法*/
     private void findUsingReflectionInSingleClass(FindState findState) {
         Method[] methods;
         try {
